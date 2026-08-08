@@ -1,9 +1,94 @@
 <!doctype html>
-<html>
+<html lang="{{ request.locale.iso_code }}">
   <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link rel="preconnect" href="https://cdn.shopify.com" crossorigin>
+    <meta name="robots" content="noindex">
+    <title>{{ page_title }}</title>
+
     {{ content_for_header }}
+
+    {% comment %}
+      Redirect only when a template is defined. App proxies (/apps|a|community|tools/*)
+      render with a blank template and must be left alone.
+
+      Upstream Shopify/hydrogen-redirect-theme writes this as a single
+      `assign should_redirect = template != blank`, which current Shopify Liquid
+      rejects -- assign does not accept a comparison expression.
+    {% endcomment %}
+    {%- assign should_redirect = false -%}
+    {%- if template != blank -%}
+      {%- assign should_redirect = true -%}
+    {%- endif -%}
+
+    {%- if settings.storefront_hostname != blank and should_redirect -%}
+      <link rel="canonical" href="https://{{ settings.storefront_hostname }}{{ request.path }}">
+    {%- else -%}
+      <link rel="canonical" href="{{ canonical_url }}">
+    {%- endif -%}
+
+    {%- if settings.storefront_hostname != blank and should_redirect -%}
+      <script>
+        function getCookie(name) {
+          name = name + '=';
+          var decoded = decodeURIComponent(document.cookie);
+          var cookies = decoded.split(';');
+          for (var i = 0; i < cookies.length; i++) {
+            var c = cookies[i].trim();
+            if (c.indexOf(name) == 0) { return c.substring(name.length, c.length); }
+          }
+        }
+        function deleteCookie(name) {
+          document.cookie = name + '=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+        }
+        if (
+          !window.Shopify.designMode &&
+            window.location.pathname !== '/checkpoint' &&
+            window.location.pathname !== '/throttle/queue' &&
+            window.location.pathname !== '/challenge'
+        ) {
+          var currentHostname = window.location.hostname;
+          var storefrontHostname = "{{ settings.storefront_hostname }}";
+          if (currentHostname !== storefrontHostname) {
+            var redirectUrl = new URL(window.location.href.replace(currentHostname, storefrontHostname));
+            var discountCode = getCookie('discount_code');
+            if (discountCode) {
+              redirectUrl.searchParams.append('discount', discountCode);
+              deleteCookie('discount_code');
+            }
+            window.storefrontRedirectUrl = redirectUrl;
+            window.location.replace(redirectUrl);
+          }
+        }
+      </script>
+    {%- endif -%}
+
+    <style>
+      body { margin: 0; font-family: system-ui; box-sizing: border-box; padding: clamp(1em, 5vw, 5em); min-height: 100vh; line-height: 1.5; }
+      h1 { font-size: 1em; }
+      p { max-width: 65ch; }
+    </style>
   </head>
   <body>
+    {%- if should_redirect -%}
+      {%- if settings.storefront_hostname != blank -%}
+        <h1>Redirecting...</h1>
+        <p>
+          <a id="redirect-link" href="https://{{ settings.storefront_hostname }}/">Click here</a>
+          if you are not automatically redirected.
+        </p>
+        <script>
+          if (!window.Shopify.designMode && window.storefrontRedirectUrl) {
+            document.getElementById('redirect-link').href = window.storefrontRedirectUrl;
+          }
+        </script>
+      {%- else -%}
+        <h1>Redirect URL not set</h1>
+        <p>Configure the redirects in "Theme settings > Storefront".</p>
+      {%- endif -%}
+    {%- endif -%}
     {{ content_for_layout }}
   </body>
 </html>
